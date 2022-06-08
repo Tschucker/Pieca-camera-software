@@ -16,10 +16,10 @@ sudo pip3 install keyboard PiDNG --force
 echo ''
 echo -e '\033[93mInstalling Camera... \033[0m'
 cd ~
-sudo rm -Rf ~/camera
-sudo git clone https://github.com/eat-sleep-code/camera
-sudo chown -R $USER:$USER camera
-cd camera
+sudo rm -Rf ~/Pieca-camera-software
+sudo git clone https://github.com/Tschucker/Pieca-camera-software
+sudo chown -R $USER:$USER Pieca-camera-software
+cd Pieca-camera-software
 sudo chmod +x camera.py
 
 echo ''

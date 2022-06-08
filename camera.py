@@ -3,7 +3,7 @@ import tkinter as tk
 from tkinter import ttk
 from picamera import PiCamera
 from pidng.core import RPICAM2DNG
-from controls import OnScreenControls, Buttons
+from controls import OnScreenControls, Buttons, HWControls
 import argparse
 import datetime
 import fractions
@@ -15,18 +15,21 @@ import sys
 import threading
 import time
 
-version = '2022.01.03'
+version = '2022.06.07'
 
 camera = PiCamera()
 PiCamera.CAPTURE_TIMEOUT = 1500
 camera.resolution = camera.MAX_RESOLUTION
+camera.rotation = 180
 dng = RPICAM2DNG()
 running = False
 onScreen = OnScreenControls()
 onScreenButtons = Buttons()
+hwControls = HWControls()
 statusDictionary = {'message': '', 'action': ''}
-buttonDictionary = {'exit': False, 'shutterUp': False, 'shutterDown': False, 'isoUp': False, 'isoDown': False, 'evUp': False, 'evDown': False, 'bracketUp': False, 'bracketDown': False, 'videoMode': False, 'capture': False, 'captureVideo': False}
-
+buttonDictionary = {'exit': False, 'shutterUp': False, 'shutterDown': False, 'isoUp': False, 'isoDown': False, 'evUp': False, 'evDown': False, 'bracketUp': False, 'bracketDown': False, 'videoMode': False, 'capture': False, 'captureVideo': False, 'init_shutdown': False, 'verify_shutdown': False}
+battery_level = 7
+power_button_start_time = None
 
 # === Argument Handling ========================================================
 
@@ -402,6 +405,7 @@ def convertBayerDataToDNG(filepath):
 
 
 # ------------------------------------------------------------------------------
+
 def createControls():
 	global running
 	global statusDictionary	
@@ -410,10 +414,19 @@ def createControls():
 	running = True
 	onScreen.create(running, statusDictionary, buttonDictionary)
 	
+# ------------------------------------------------------------------------------
+
+def createHWControls():
+	global battery_level
+	global buttonDictionary
+	
+	hwControls.create(battery_level, buttonDictionary)
+
 # === Image Capture ============================================================
 
 controlsThread = threading.Thread(target=createControls)
 controlsThread.start()
+createHWControls()
 
 
 try:
@@ -454,6 +467,8 @@ try:
 		global isRecording
 		global statusDictionary
 		global buttonDictionary
+	        global battery_level
+                global power_button_start_time
 
 		
 
@@ -638,6 +653,23 @@ try:
 						videoMode = 0
 					setVideoMode(videoMode, 0.25)
 					buttonDictionary.update({'videoMode': False})
+
+                                # Power Off Camera
+                                elif buttonDictionary['init_shutdown'] == True:
+                                        power_button_start_time = time.time()
+					buttonDictionary.update({'init_shutdown': False})
+
+                                elif buttonDictionary['verify_shutdown'] == True:
+                                        pressed_time = time.time() - power_button_start_time
+                                        if (pressed_time > 3) and (pressed_time < 6):
+					    statusDictionary.update({'message': ' Sending Power Off '})
+                                            time.sleep(1)
+                                            os.system("sudo shutdown -h now")
+                                        else:
+					    statusDictionary.update({'message': ' Charging for '+ str(pressed_time)+' seconds '})
+
+					buttonDictionary.update({'verify_shutdown': False})
+
 			
 			except SystemExit:
 				running = False

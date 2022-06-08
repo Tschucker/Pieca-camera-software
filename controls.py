@@ -4,7 +4,7 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 import os
 import time
-
+import RPi.GPIO as GPIO
 
 	
 class Buttons():
@@ -37,6 +37,10 @@ class Buttons():
 		   	buttonDictionary.update({'capture': True})
 		elif e == 'captureVideo':
 		   	buttonDictionary.update({'captureVideo': True})
+		elif e == 'init_shutdown':
+			buttonDictionary.update({'init_shutdown': True})			
+		elif e == 'verify_shutdown':
+			buttonDictionary.update({'verify_shutdown': True})			
 		elif e == 'exit':
 			buttonDictionary.update({'exit': True})			
 		
@@ -44,8 +48,43 @@ class Buttons():
 
 		return buttonDictionary
 
+class HWControls():
 
+        def create(self, buttonDictionary, level):
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setwarnings(False)
 
+            #Power button
+            GPIO.setup(3, GPIO.IN)
+            GPIO.add_event_detect(3, GPIO.FALLING, callback=lambda: Buttons.handler(buttonDictionary, 'init_shutdown'), bouncetime=2000)
+            GPIO.add_event_detect(3, GPIO.RISING, callback=lambda: Buttons.handler(buttonDictionary, 'verify_shutdown'), bouncetime=2000)
+
+            #Battery gauge
+            GPIO.setup(22, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+            GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+            GPIO.setup(24, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+            GPIO.add_event_detect(22, GPIO.FALLING, callback=update_battery_gauge(), bouncetime=200)
+            GPIO.add_event_detect(22, GPIO.RISING, callback=update_battery_gauge(), bouncetime=200)
+            GPIO.add_event_detect(23, GPIO.FALLING, callback=update_battery_gauge(), bouncetime=200)
+            GPIO.add_event_detect(23, GPIO.RISING, callback=update_battery_gauge(), bouncetime=200)
+            GPIO.add_event_detect(24, GPIO.FALLING, callback=update_battery_gauge(), bouncetime=200)
+            GPIO.add_event_detect(24, GPIO.RISING, callback=update_battery_gauge(), bouncetime=200)
+
+            #Shutter button
+            GPIO.setup(26, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            GPIO.add_event_detect(26, GPIO.FALLING, callback=lambda: Buttons.handler(buttonDictionary, 'capture'), bouncetime=200)
+        
+        def update_battery_gauge(level, p1, p2, p3):
+            level = int(str(GPIO.input(p1))+str(GPIO.input(p2))+str(GPIO.input(p3)))
+
+            if level < 2:
+	        time.sleep(2)
+                if level < 2:
+                    os.system("sudo shutdown -h now")
+
+	    time.sleep(0.2)
+	    return level
+        
 class OnScreenControls():
 
 	# === Create Controls =======================================================
