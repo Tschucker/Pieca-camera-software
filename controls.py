@@ -62,17 +62,6 @@ class HWControls():
         time.sleep(0.2)
         return buttonDictionary
 
-    def update_battery_gauge(channel, level, p1, p2, p3):
-        level = int(str(GPIO.input(p1))+str(GPIO.input(p2))+str(GPIO.input(p3)))
-
-        if level < 2:
-            time.sleep(2)
-            if level < 2:
-                print("would shutdown now level:"+str(level))
-                #os.system("sudo shutdown -h now")
-
-        time.sleep(0.2)
-        return level
 
     def create(self, buttonDictionary, level):
         GPIO.setmode(GPIO.BCM)
@@ -80,20 +69,19 @@ class HWControls():
 
         #Power button
         GPIO.setup(3, GPIO.IN)
-        GPIO.add_event_detect(3, GPIO.FALLING, bouncetime=2000, callback=lambda x: self.hw_handler(buttonDictionary, 'init_shutdown'))
-        #GPIO.add_event_detect(3, GPIO.RISING, callback=lambda: Buttons.handler(buttonDictionary, 'verify_shutdown'), bouncetime=2000)
+        GPIO.add_event_detect(3, GPIO.BOTH, bouncetime=2000, callback=lambda x: self.hw_handler(buttonDictionary, 'init_shutdown'))
 
         #Battery gauge
         GPIO.setup(22, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
         GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
         GPIO.setup(24, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-        GPIO.add_event_detect(22, GPIO.BOTH, bouncetime=200, callback=lambda x: self.update_battery_gauge(level, 24, 23, 22))
-        GPIO.add_event_detect(23, GPIO.BOTH, bouncetime=200, callback=lambda x: self.update_battery_gauge(level, 24, 23, 22))
-        GPIO.add_event_detect(24, GPIO.BOTH, bouncetime=200, callback=lambda x: self.update_battery_gauge(level, 24, 23, 22))
 
         #Shutter button
         GPIO.setup(26, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.add_event_detect(26, GPIO.FALLING, bouncetime=200, callback=lambda x: self.hw_handler(buttonDictionary, 'capture'))
+
+        return(int(str(GPIO.input(24))+str(GPIO.input(23))+str(GPIO.input(22)),2))
+
 
 
 class OnScreenControls():

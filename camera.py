@@ -16,6 +16,7 @@ import sys
 import threading
 import time
 import numpy as np
+import RPi.GPIO as GPIO
 
 version = '2022.06.08'
 
@@ -32,7 +33,7 @@ hwControls = HWControls()
 statusDictionary = {'message': '', 'action': '', 'battery': ''}
 buttonDictionary = {'exit': False, 'shutterUp': False, 'shutterDown': False, 'isoUp': False, 'isoDown': False, 'evUp': False, 'evDown': False, 'bracketUp': False, 'bracketDown': False, 'videoMode': False, 'capture': False, 'captureVideo': False, 'init_shutdown': False, 'verify_shutdown': False}
 battery_level = 7
-power_button_start_time = None
+power_button_start_time = 0
 
 # === Argument Handling ========================================================
 
@@ -171,7 +172,7 @@ def setShutter(input, wait = 0):
             camera.shutter_speed = 0
             # print(str(camera.shutter_speed) + '|' + str(camera.framerate) + '|' + str(shutter))   
             print(' Shutter Speed: auto')
-            statusDictionary.update({'message': 'Shutter Speed: auto'})
+            statusDictionary.update({'message': 'SS: auto'})
         else:
             camera.shutter_speed = shutter * 1000
             # print(str(camera.shutter_speed) + '|' + str(camera.framerate) + '|' + str(shutter))           
@@ -180,10 +181,10 @@ def setShutter(input, wait = 0):
             roundedShortShutter = '{:.0f}'.format(1/floatingShutter)
             if shutter > shutterLongThreshold:
                 print(' Shutter Speed: ' + str(roundedShutter)  + 's [Long Exp]')
-                statusDictionary.update({'message': ' Shutter Speed: ' + str(roundedShutter)  + 's [Long Exp]'})
+                statusDictionary.update({'message': ' SS: ' + str(roundedShutter)  + 's [Long Exp]'})
             else:
                 print(' Shutter Speed: ' + str(roundedShutter) + 's')
-                statusDictionary.update({'message': ' Shutter Speed: 1/' + str(roundedShortShutter) + 's'})
+                statusDictionary.update({'message': ' SS: 1/' + str(roundedShortShutter) + 's'})
         time.sleep(wait)
         return
     except Exception as ex:
@@ -229,7 +230,7 @@ def setExposure(input, wait = 0):
     try:    
         camera.exposure_mode = exposure
         print(' Exposure Mode: ' + exposure)
-        statusDictionary.update({'message': ' Exposure Mode: ' + exposure})
+        statusDictionary.update({'message': ' EM: ' + exposure})
         time.sleep(wait)
         return
     except Exception as ex:
@@ -254,7 +255,7 @@ def setEV(input, wait = 0, displayMessage = True):
         # print(str(camera.exposure_compensation) + '|' + str(ev))
         if displayMessage == True:
             print(' Exposure Compensation: ' + evPrefix + str(ev))
-            statusDictionary.update({'message': ' Exposure Compensation: ' + evPrefix + str(ev)})
+            statusDictionary.update({'message': ' ExpComp: ' + evPrefix + str(ev)})
         time.sleep(wait)
         return
     except Exception as ex: 
@@ -280,7 +281,7 @@ def setBracket(input, wait = 0, displayMessage = True):
             bracketHigh = evMax
         if displayMessage == True:
             print(' Exposure Bracketing: ' + str(bracket))
-            statusDictionary.update({'message': ' Exposure Bracketing: ' + str(bracket)})
+            statusDictionary.update({'message': ' ExpBr: ' + str(bracket)})
         time.sleep(wait)
         return
     except Exception as ex:
@@ -296,7 +297,7 @@ def setAWB(input, wait = 0):
     try:    
         camera.awb_mode = awb
         print(' White Balance Mode: ' + awb)
-        statusDictionary.update({'message': ' White Balance Mode: ' + awb})
+        statusDictionary.update({'message': ' WBM:' + awb})
         time.sleep(wait)
         return
     except Exception as ex:
@@ -321,14 +322,14 @@ def setVideoMode(input = 0, wait = 0):
             videoFramerate = 24
             videoFormat = 'h264'
             print(' Video Mode: 1920x1080 24fps (H264)')
-            statusDictionary.update({'message': 'Video Mode: 1920x1080 24fps (H264)'})
+            statusDictionary.update({'message': 'VM:1920x1080 24fps'})
         else:
             videoWidth = 1920
             videoHeight = 1080
             videoFramerate = 30
             videoFormat = 'h264'
             print(' Video Mode: 1920x1080 30fps (H264)')
-            statusDictionary.update({'message': 'Video Mode: 1920x1080 30fps (H264)'})
+            statusDictionary.update({'message': 'VM:1920x1080 30fps'})
         time.sleep(wait)
         return
     except Exception as ex:
@@ -398,6 +399,30 @@ def convertBayerDataToDNG(filepath):
 
 # ------------------------------------------------------------------------------
 
+def update_battery_gauge():
+    global statusDictionary 
+    global battery_level
+
+    while True:
+        try:
+            battery_level = int(str(GPIO.input(24))+str(GPIO.input(23))+str(GPIO.input(22)),2)
+
+            if battery_level < 2:
+                time.sleep(2)
+                battery_level = int(str(GPIO.input(24))+str(GPIO.input(23))+str(GPIO.input(22)),2)
+                if battery_level < 2:
+                    print("would shutdown now level:"+str(battery_level))
+                    #os.system("sudo shutdown -h now")
+
+            statusDictionary.update({'battery': str(int((battery_level/7)*100))+'%'})
+            #print("battery level:"+str(battery_level))
+            time.sleep(5)
+        except Exception as ex:
+            print(str(ex))
+            pass
+
+# ------------------------------------------------------------------------------
+
 def createControls():
     global running
     global statusDictionary 
@@ -412,14 +437,15 @@ def createHWControls():
     global battery_level
     global buttonDictionary
 
-    hwControls.create(buttonDictionary, battery_level)
+    battery_level = hwControls.create(buttonDictionary, battery_level)
 
 # === Image Capture ============================================================
 
 controlsThread = threading.Thread(target=createControls)
 controlsThread.start()
 createHWControls()
-
+batteryThread = threading.Thread(target=update_battery_gauge)
+batteryThread.start()
 
 try:
     echoOff()
@@ -486,12 +512,10 @@ try:
                 if keyboard.is_pressed('ctrl+c') or keyboard.is_pressed('esc') or buttonDictionary['exit'] == True:
                     buttonDictionary.update({'exit': False})
                     echoOn()
-                    #os._exit(1)
                     running = False
                     hidePreview()
-                    time.sleep(5)                           
-                    os.kill(os.getpid(), signal.SIGSTOP)
-                    sys.exit(0)
+                    time.sleep(2)                           
+                    os._exit(1)
                     break
 
                 # Help
@@ -557,7 +581,7 @@ try:
                         camera.framerate = videoFramerate
                         camera.resolution = (videoWidth, videoHeight)
                         print(' Capturing video: ' + filepath + '\n')
-                        statusDictionary.update({'message': ' Recording: Started '})
+                        statusDictionary.update({'message': ' Rec: Started '})
                         buttonDictionary.update({'captureVideo': False})
                         camera.start_recording(filepath, quality=20)
                     else:
@@ -566,7 +590,7 @@ try:
                         camera.stop_recording()
                         camera.resolution = camera.MAX_RESOLUTION
                         print(' Capture complete \n')
-                        statusDictionary.update({'message': ' Recording: Stopped '})
+                        statusDictionary.update({'message': ' Rec: Stopped '})
                         buttonDictionary.update({'captureVideo': False})
 
                     time.sleep(1)
@@ -651,22 +675,19 @@ try:
 
                 # Power Off Camera
                 elif buttonDictionary['init_shutdown'] == True:
-                    power_button_start_time = time.time()
-                    buttonDictionary.update({'init_shutdown': False})
-
-                elif buttonDictionary['verify_shutdown'] == True:
-                    pressed_time = time.time() - power_button_start_time
-                    if (pressed_time > 3) and (pressed_time < 6):
-                        statusDictionary.update({'message': ' Sending Power Off '})
-                        time.sleep(1)
-                        os.system("sudo shutdown -h now")
+                    if (power_button_start_time == 0) and (GPIO.input(3) == 0):
+                        power_button_start_time = time.time()
                     else:
-                        statusDictionary.update({'message': ' Charging for '+ str(pressed_time)+' seconds '})
+                        pressed_time = time.time() - power_button_start_time
+                        if (pressed_time > 2) and (pressed_time < 6):
+                            statusDictionary.update({'message': ' Power Off '})
+                            time.sleep(1)
+                            #os.system("sudo shutdown -h now")
+                        else:
+                            statusDictionary.update({'message': ' Charged '+ str(int(pressed_time/60))+' m '})
+                        power_button_start_time = 0
 
-                    buttonDictionary.update({'verify_shutdown': False})
-
-                #battery update
-                statusDictionary.update({'battery': str(int((battery_level/7)*100))+'%'})
+                    buttonDictionary.update({'init_shutdown': False})
 
 
             except SystemExit:
