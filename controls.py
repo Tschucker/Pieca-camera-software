@@ -37,18 +37,42 @@ class Buttons():
             buttonDictionary.update({'capture': True})
         elif e == 'captureVideo':
             buttonDictionary.update({'captureVideo': True})
-        elif e == 'init_shutdown':
-            buttonDictionary.update({'init_shutdown': True})                        
-        elif e == 'verify_shutdown':
-            buttonDictionary.update({'verify_shutdown': True})                      
         elif e == 'exit':
             buttonDictionary.update({'exit': True})                 
 
         time.sleep(0.2)
 
         return buttonDictionary
+    
+
 
 class HWControls():
+
+    def hw_handler(channel, buttonDictionary, e):
+
+        # print(' DEBUG: ' + e + ' was clicked ')
+
+        if e == 'capture':
+            buttonDictionary.update({'capture': True})
+        elif e == 'init_shutdown':
+            buttonDictionary.update({'init_shutdown': True})                        
+        elif e == 'verify_shutdown':
+            buttonDictionary.update({'verify_shutdown': True})                      
+
+        time.sleep(0.2)
+        return buttonDictionary
+
+    def update_battery_gauge(channel, level, p1, p2, p3):
+        level = int(str(GPIO.input(p1))+str(GPIO.input(p2))+str(GPIO.input(p3)))
+
+        if level < 2:
+            time.sleep(2)
+            if level < 2:
+                print("would shutdown now level:"+str(level))
+                #os.system("sudo shutdown -h now")
+
+        time.sleep(0.2)
+        return level
 
     def create(self, buttonDictionary, level):
         GPIO.setmode(GPIO.BCM)
@@ -56,34 +80,21 @@ class HWControls():
 
         #Power button
         GPIO.setup(3, GPIO.IN)
-        GPIO.add_event_detect(3, GPIO.FALLING, callback=lambda: Buttons.handler(buttonDictionary, 'init_shutdown'), bouncetime=2000)
-        GPIO.add_event_detect(3, GPIO.RISING, callback=lambda: Buttons.handler(buttonDictionary, 'verify_shutdown'), bouncetime=2000)
+        GPIO.add_event_detect(3, GPIO.FALLING, bouncetime=2000, callback=lambda x: self.hw_handler(buttonDictionary, 'init_shutdown'))
+        #GPIO.add_event_detect(3, GPIO.RISING, callback=lambda: Buttons.handler(buttonDictionary, 'verify_shutdown'), bouncetime=2000)
 
         #Battery gauge
         GPIO.setup(22, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
         GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
         GPIO.setup(24, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-        GPIO.add_event_detect(22, GPIO.FALLING, callback=update_battery_gauge(), bouncetime=200)
-        GPIO.add_event_detect(22, GPIO.RISING, callback=update_battery_gauge(), bouncetime=200)
-        GPIO.add_event_detect(23, GPIO.FALLING, callback=update_battery_gauge(), bouncetime=200)
-        GPIO.add_event_detect(23, GPIO.RISING, callback=update_battery_gauge(), bouncetime=200)
-        GPIO.add_event_detect(24, GPIO.FALLING, callback=update_battery_gauge(), bouncetime=200)
-        GPIO.add_event_detect(24, GPIO.RISING, callback=update_battery_gauge(), bouncetime=200)
+        GPIO.add_event_detect(22, GPIO.BOTH, bouncetime=200, callback=lambda x: self.update_battery_gauge(level, 24, 23, 22))
+        GPIO.add_event_detect(23, GPIO.BOTH, bouncetime=200, callback=lambda x: self.update_battery_gauge(level, 24, 23, 22))
+        GPIO.add_event_detect(24, GPIO.BOTH, bouncetime=200, callback=lambda x: self.update_battery_gauge(level, 24, 23, 22))
 
         #Shutter button
         GPIO.setup(26, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.add_event_detect(26, GPIO.FALLING, callback=lambda: Buttons.handler(buttonDictionary, 'capture'), bouncetime=200)
+        GPIO.add_event_detect(26, GPIO.FALLING, bouncetime=200, callback=lambda x: self.hw_handler(buttonDictionary, 'capture'))
 
-    def update_battery_gauge(level, p1, p2, p3):
-        level = int(str(GPIO.input(p1))+str(GPIO.input(p2))+str(GPIO.input(p3)))
-
-        if level < 2:
-            time.sleep(2)
-            if level < 2:
-                os.system("sudo shutdown -h now")
-
-        time.sleep(0.2)
-        return level
 
 class OnScreenControls():
 
@@ -91,56 +102,66 @@ class OnScreenControls():
 
     def create(self, running, statusDictionary, buttonDictionary):
 
-        currentDirectory = '/home/pi/camera/'
+        currentDirectory = '/home/pi/Pieca-camera-software/'
+        num_buttons = 6
+        messageHeight = 20
 
         root = tk.Tk()
         root.title('Camera Controls')
         root.wm_attributes('-type', 'splash')
-        root.geometry(str(root.winfo_screenwidth()) + 'x124+0+' + str(root.winfo_screenheight() - 124))
+        root.geometry(str(root.winfo_screenwidth()-816) + 'x' + str(root.winfo_screenheight()) + '+816+0')
         root['background'] = '#111111'
 
 
         # --- On-Screen Control Button Styles -----------------------------------
 
         buttonStyle = ttk.Style()
-        buttonStyle.configure('default.TButton', background = '#222222', bordercolor = '#111111', borderwidth=0)
+        buttonStyle.configure('default.TButton', background = '#a6a6a6', bordercolor = '#111111', borderwidth=0)
+        buttonStyle.configure('warning.TButton', background='#cc0000', bordercolor = '#880000', borderwidth=0)
         buttonStyle.configure('primary.TButton', background = '#00DDF1', bordercolor = '#00DDF1', borderwidth=0)
-        buttonWidth = 72.72
-        buttonHeight = 60
+        buttonWidth = (root.winfo_screenwidth()-816)/2
+        buttonHeight = ((root.winfo_screenheight()-messageHeight)/num_buttons) - (((root.winfo_screenheight()-messageHeight)/num_buttons)/6)
 
 
         # --- On-Screen Control Label Styles ------------------------------------
 
         labelStyle = ttk.Style()
-        labelStyle.configure('default.TLabel', background='#000000', foreground='#EEEEEE')
+        labelStyle.configure('default.TLabel', background='#808080', foreground='#EEEEEE')
         labelStyle.configure('warning.TLabel', background='#880000', foreground='#EEEEEE')
-        labelStyle.configure('primary.TLabel', background='#00DDF1', foreground='#111111')
-        labelHeight = 30
+        labelStyle.configure('primary.TLabel', background='#00bbcc', foreground='#111111')
+        labelHeight = (((root.winfo_screenheight()-messageHeight)/num_buttons)/6)
 
         borderLeft = 0
 
         # --- Control Rendering -------------------------------------------------
         # Status
-        windowWidth = 800 # str(root.winfo_screenwidth())
+        windowWidth = root.winfo_screenwidth()-816-45
         statusVariable = tk.StringVar() 
         statusLabel = ttk.Label(root, compound=tk.CENTER, textvariable=statusVariable)
         statusLabel['style'] = 'default.TLabel'
         statusLabel.configure(anchor='center')
         statusVariable.set(statusDictionary['message'])         
-        statusLabel.place(x=0,y=buttonHeight+labelHeight,width=windowWidth,height=labelHeight)
+        statusLabel.place(x=0,y=root.winfo_screenheight()-messageHeight,width=windowWidth,height=messageHeight)
 
+        # Battery
+        batteryVariable = tk.StringVar() 
+        batteryLabel = ttk.Label(root, compound=tk.CENTER, textvariable=batteryVariable)
+        batteryLabel['style'] = 'primary.TLabel'
+        batteryLabel.configure(anchor='center')
+        batteryVariable.set(statusDictionary['battery'])         
+        batteryLabel.place(x=windowWidth,y=root.winfo_screenheight()-messageHeight,width=45,height=messageHeight)
 
         # Exit
-        # image = Image.open(os.path.join(currentDirectory, 'images/exit.png'))
-        # exitImage = ImageTk.PhotoImage(image)
-        # exitButton = ttk.Button(root, compound=tk.CENTER, image=exitImage, command=lambda: Buttons.handler(buttonDictionary, 'exit'))
-        # exitButton['style'] = 'default.TButton'
-        # exitButton.place(x=borderLeft,y=0,width=buttonWidth,height=buttonHeight)
+        image = Image.open(os.path.join(currentDirectory, 'images/exit.png'))
+        exitImage = ImageTk.PhotoImage(image)
+        exitButton = ttk.Button(root, compound=tk.CENTER, image=exitImage, command=lambda: Buttons.handler(buttonDictionary, 'exit'))
+        exitButton['style'] = 'warning.TButton'
+        exitButton.place(x=borderLeft+(buttonWidth*0),y=(buttonHeight+labelHeight)*1,width=buttonWidth,height=buttonHeight)
 
-        # exitLabel = ttk.Label(root, compound=tk.CENTER, text='Exit')
-        # exitLabel['style'] = 'warning.TLabel'
-        # exitLabel.configure(anchor='center')
-        # exitLabel.place(x=borderLeft,y=buttonHeight,width=buttonWidth,height=labelHeight)
+        exitLabel = ttk.Label(root, compound=tk.CENTER, text='Exit')
+        exitLabel['style'] = 'warning.TLabel'
+        exitLabel.configure(anchor='center')
+        exitLabel.place(x=borderLeft+(buttonWidth*0),y=(buttonHeight+labelHeight)*1+buttonHeight,width=buttonWidth,height=labelHeight)
 
 
         # Capture Video
@@ -160,12 +181,12 @@ class OnScreenControls():
         videoModeImage = ImageTk.PhotoImage(image)
         videoModeButton = ttk.Button(root, compound=tk.CENTER, image=videoModeImage, command=lambda: Buttons.handler(buttonDictionary, 'videoMode'))
         videoModeButton['style'] = 'default.TButton'
-        videoModeButton.place(x=borderLeft+buttonWidth,y=0,width=buttonWidth,height=buttonHeight)
+        videoModeButton.place(x=borderLeft+(buttonWidth*1),y=(buttonHeight+labelHeight)*1,width=buttonWidth,height=buttonHeight)
 
         videoModeLabel = ttk.Label(root, compound=tk.CENTER, text='Mode')
         videoModeLabel['style'] = 'default.TLabel'
         videoModeLabel.configure(anchor='center')
-        videoModeLabel.place(x=borderLeft+buttonWidth,y=buttonHeight,width=buttonWidth,height=labelHeight)
+        videoModeLabel.place(x=borderLeft+(buttonWidth*1),y=(buttonHeight+labelHeight)*1+buttonHeight,width=buttonWidth,height=labelHeight)
 
 
         # Shutter Speed 
@@ -173,18 +194,18 @@ class OnScreenControls():
         shutterUpImage = ImageTk.PhotoImage(image)
         shutterUpButton = ttk.Button(root, compound=tk.CENTER, image=shutterUpImage, command=lambda: Buttons.handler(buttonDictionary, 'shutterUp'))
         shutterUpButton['style'] = 'default.TButton'
-        shutterUpButton.place(x=borderLeft+(buttonWidth*2),y=0,width=buttonWidth,height=buttonHeight)
+        shutterUpButton.place(x=borderLeft+(buttonWidth*0),y=(buttonHeight+labelHeight)*2,width=buttonWidth,height=buttonHeight)
 
         image = Image.open(os.path.join(currentDirectory, 'images/shutter-speed-down.png'))
         shutterDownImage = ImageTk.PhotoImage(image)
         shutterDownButton = ttk.Button(root, compound=tk.CENTER, image=shutterDownImage, command=lambda: Buttons.handler(buttonDictionary, 'shutterDown'))
         shutterDownButton['style'] = 'default.TButton'
-        shutterDownButton.place(x=borderLeft+(buttonWidth*3),y=0,width=buttonWidth,height=buttonHeight)
+        shutterDownButton.place(x=borderLeft+(buttonWidth*1),y=(buttonHeight+labelHeight)*2,width=buttonWidth,height=buttonHeight)
 
         shutterLabel = ttk.Label(root, compound=tk.CENTER, text='Shutter Speed')
         shutterLabel['style'] = 'default.TLabel'
         shutterLabel.configure(anchor='center')
-        shutterLabel.place(x=borderLeft+(buttonWidth*2),y=buttonHeight,width=buttonWidth*2,height=labelHeight)
+        shutterLabel.place(x=borderLeft+(buttonWidth*0),y=(buttonHeight+labelHeight)*2+buttonHeight,width=buttonWidth*2,height=labelHeight)
 
 
         #ISO
@@ -192,18 +213,18 @@ class OnScreenControls():
         isoUpImage = ImageTk.PhotoImage(image)
         isoUpButton = ttk.Button(root, compound=tk.CENTER, image=isoUpImage, command=lambda: Buttons.handler(buttonDictionary, 'isoUp'))
         isoUpButton['style'] = 'default.TButton'
-        isoUpButton.place(x=borderLeft+(buttonWidth*4),y=0,width=buttonWidth,height=buttonHeight)
+        isoUpButton.place(x=borderLeft+(buttonWidth*0),y=(buttonHeight+labelHeight)*3,width=buttonWidth,height=buttonHeight)
 
         image = Image.open(os.path.join(currentDirectory, 'images/iso-down.png'))
         isoDownImage = ImageTk.PhotoImage(image)
         isoDownButton = ttk.Button(root, compound=tk.CENTER, image=isoDownImage, command=lambda: Buttons.handler(buttonDictionary, 'isoDown'))
         isoDownButton['style'] = 'default.TButton'
-        isoDownButton.place(x=borderLeft+(buttonWidth*5),y=0,width=buttonWidth,height=buttonHeight)
+        isoDownButton.place(x=borderLeft+(buttonWidth*1),y=(buttonHeight+labelHeight)*3,width=buttonWidth,height=buttonHeight)
 
         isoLabel = ttk.Label(root, compound=tk.CENTER, text='ISO')
         isoLabel['style'] = 'default.TLabel'
         isoLabel.configure(anchor='center')
-        isoLabel.place(x=borderLeft+(buttonWidth*4),y=buttonHeight,width=buttonWidth*2,height=labelHeight)
+        isoLabel.place(x=borderLeft+(buttonWidth*0),y=(buttonHeight+labelHeight)*3+buttonHeight,width=buttonWidth*2,height=labelHeight)
 
 
         # Exposure Compensation
@@ -211,18 +232,18 @@ class OnScreenControls():
         evUpImage = ImageTk.PhotoImage(image)
         evUpButton = ttk.Button(root, compound=tk.CENTER, image=evUpImage, command=lambda: Buttons.handler(buttonDictionary, 'evUp'))
         evUpButton['style'] = 'default.TButton'
-        evUpButton.place(x=borderLeft+(buttonWidth*6),y=0,width=buttonWidth,height=buttonHeight)
+        evUpButton.place(x=borderLeft+(buttonWidth*0),y=(buttonHeight+labelHeight)*4,width=buttonWidth,height=buttonHeight)
 
         image = Image.open(os.path.join(currentDirectory, 'images/exposure-compensation-down.png'))
         evDownImage = ImageTk.PhotoImage(image)
         evDownButton = ttk.Button(root, compound=tk.CENTER, image=evDownImage, command=lambda: Buttons.handler(buttonDictionary, 'evDown'))
         evDownButton['style'] = 'default.TButton'
-        evDownButton.place(x=borderLeft+(buttonWidth*7),y=0,width=buttonWidth,height=buttonHeight)
+        evDownButton.place(x=borderLeft+(buttonWidth*1),y=(buttonHeight+labelHeight)*4,width=buttonWidth,height=buttonHeight)
 
         evLabel = ttk.Label(root, compound=tk.CENTER, text='Compensation')
         evLabel['style'] = 'default.TLabel'
         evLabel.configure(anchor='center')
-        evLabel.place(x=borderLeft+(buttonWidth*6),y=buttonHeight,width=buttonWidth*2,height=labelHeight)
+        evLabel.place(x=borderLeft+(buttonWidth*0),y=(buttonHeight+labelHeight)*4+buttonHeight,width=buttonWidth*2,height=labelHeight)
 
 
         # Exposure Bracketing
@@ -230,18 +251,18 @@ class OnScreenControls():
         bracketUpImage = ImageTk.PhotoImage(image)
         bracketUpButton = ttk.Button(root, compound=tk.CENTER, image=bracketUpImage, command=lambda: Buttons.handler(buttonDictionary, 'bracketUp'))
         bracketUpButton['style'] = 'default.TButton'
-        bracketUpButton.place(x=borderLeft+(buttonWidth*8),y=0,width=buttonWidth,height=buttonHeight)
+        bracketUpButton.place(x=borderLeft+(buttonWidth*0),y=(buttonHeight+labelHeight)*5,width=buttonWidth,height=buttonHeight)
 
         image = Image.open(os.path.join(currentDirectory, 'images/exposure-bracketing-down.png'))
         bracketDownImage = ImageTk.PhotoImage(image)
         bracketDownButton = ttk.Button(root, compound=tk.CENTER, image=bracketDownImage, command=lambda: Buttons.handler(buttonDictionary, 'bracketDown'))
         bracketDownButton['style'] = 'default.TButton'
-        bracketDownButton.place(x=borderLeft+(buttonWidth*9),y=0,width=buttonWidth,height=buttonHeight)
+        bracketDownButton.place(x=borderLeft+(buttonWidth*1),y=(buttonHeight+labelHeight)*5,width=buttonWidth,height=buttonHeight)
 
         bracketLabel = ttk.Label(root, compound=tk.CENTER, text='Bracketing')
         bracketLabel['style'] = 'default.TLabel'
         bracketLabel.configure(anchor='center')
-        bracketLabel.place(x=borderLeft+(buttonWidth*8),y=buttonHeight,width=buttonWidth*2,height=labelHeight)
+        bracketLabel.place(x=borderLeft+(buttonWidth*0),y=(buttonHeight+labelHeight)*5+buttonHeight,width=buttonWidth*2,height=labelHeight)
 
 
         # Capture
@@ -249,12 +270,12 @@ class OnScreenControls():
         captureImage = ImageTk.PhotoImage(image)
         captureButton = ttk.Button(root, compound=tk.CENTER, image=captureImage, command=lambda: Buttons.handler(buttonDictionary, 'capture'))
         captureButton['style'] = 'primary.TButton'
-        captureButton.place(x=borderLeft+(buttonWidth*10),y=0,width=buttonWidth,height=buttonHeight)
+        captureButton.place(x=borderLeft+(buttonWidth*1),y=0,width=buttonWidth,height=buttonHeight)
 
         captureLabel = ttk.Label(root, compound=tk.CENTER, text='Capture')
         captureLabel['style'] = 'primary.TLabel'
         captureLabel.configure(anchor='center')
-        captureLabel.place(x=borderLeft+(buttonWidth*10),y=buttonHeight,width=buttonWidth,height=labelHeight)
+        captureLabel.place(x=borderLeft+(buttonWidth*1),y=buttonHeight,width=buttonWidth,height=labelHeight)
 
 
         def updateStatus():
@@ -265,10 +286,14 @@ class OnScreenControls():
                 captureVideoLabel['style'] = 'primary.TLabel'
             else:
                 captureVideoLabel['style'] = 'primary.TLabel'
+
+            batteryVariable.set(statusDictionary['battery'])
+
             if running == False:
                 root.destroy()
                 sys.exit(0)
             root.after(500, updateStatus)
+            
 
         root.after(500, updateStatus)
 

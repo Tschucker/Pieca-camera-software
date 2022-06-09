@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import ttk
 from picamera import PiCamera
 from pidng.core import RPICAM2DNG
+from pidng.camdefs import RaspberryPiHqCamera, CFAPattern
 from controls import OnScreenControls, Buttons, HWControls
 import argparse
 import datetime
@@ -14,19 +15,21 @@ import subprocess
 import sys
 import threading
 import time
+import numpy as np
 
-version = '2022.06.07'
+version = '2022.06.08'
 
 camera = PiCamera()
 PiCamera.CAPTURE_TIMEOUT = 1500
 camera.resolution = camera.MAX_RESOLUTION
 camera.rotation = 180
-dng = RPICAM2DNG()
+dng = RPICAM2DNG(RaspberryPiHqCamera(3,CFAPattern.BGGR))
+dng.options(path="", compress=True)
 running = False
 onScreen = OnScreenControls()
 onScreenButtons = Buttons()
 hwControls = HWControls()
-statusDictionary = {'message': '', 'action': ''}
+statusDictionary = {'message': '', 'action': '', 'battery': ''}
 buttonDictionary = {'exit': False, 'shutterUp': False, 'shutterDown': False, 'isoUp': False, 'isoDown': False, 'evUp': False, 'evDown': False, 'bracketUp': False, 'bracketDown': False, 'videoMode': False, 'capture': False, 'captureVideo': False, 'init_shutdown': False, 'verify_shutdown': False}
 battery_level = 7
 power_button_start_time = None
@@ -50,22 +53,23 @@ args = parser.parse_args()
 
 previewVisible = False
 try:
-    previewWidth = args.previewWidth or 800
+    previewWidth = args.previewWidth or 640
     previewWidth = int(previewWidth)
-    previewHeight = args.previewHeight or 356
+    previewHeight = args.previewHeight or 480
     previewHeight = int(previewHeight)
 except Exception as ex: 
-    previewWidth = 800
-    previewHeight = 356
+    previewWidth = 640
+    previewHeight = 480
 
 action = args.action or 'capture'
 action = action.lower()
 
 shutter = args.shutter or 'auto'
-shutterLong = 30000
+shutterLong = 10000
 shutterLongThreshold = 1000
 shutterShort = 0
-defaultFramerate = 30
+shutterNominal = 10
+defaultFramerate = 24
 
 iso = args.iso or 'auto'
 isoMin = 100
@@ -90,7 +94,7 @@ if outputFolder.endswith('/') == False:
 timer = args.timer or 0
 timer = int(timer)
 
-raw = args.raw or True
+raw = args.raw or False
 
 videoWidth = 1920
 videoHeight = 1080
@@ -151,12 +155,12 @@ def setShutter(input, wait = 0):
         if shutter < shutterShort:
             shutter = shutterShort
         elif shutter > shutterLong:
-            shutter = shutterLong 
+            shutter = 0
 
     try:
         if camera.framerate == defaultFramerate and shutter > shutterLongThreshold:
             camera.framerate=fractions.Fraction(5, 1000)
-        elif camera.framerate != defaultFramerate and shutter <= shutterLongThreshold:
+        elif camera.framerate != defaultFramerate and shutter < shutterLongThreshold:
             camera.framerate = defaultFramerate
     except Exception as ex:
         # print( ' WARNING: Could not set framerate! ')
@@ -172,13 +176,14 @@ def setShutter(input, wait = 0):
             camera.shutter_speed = shutter * 1000
             # print(str(camera.shutter_speed) + '|' + str(camera.framerate) + '|' + str(shutter))           
             floatingShutter = float(shutter/1000)
-            roundedShutter = '{:.3f}'.format(floatingShutter)
+            roundedShutter = '{:.2f}'.format(floatingShutter)
+            roundedShortShutter = '{:.0f}'.format(1/floatingShutter)
             if shutter > shutterLongThreshold:
-                print(' Shutter Speed: ' + str(roundedShutter)  + 's [Long Exposure Mode]')
-                statusDictionary.update({'message': ' Shutter Speed: ' + str(roundedShutter)  + 's [Long Exposure Mode]'})
+                print(' Shutter Speed: ' + str(roundedShutter)  + 's [Long Exp]')
+                statusDictionary.update({'message': ' Shutter Speed: ' + str(roundedShutter)  + 's [Long Exp]'})
             else:
                 print(' Shutter Speed: ' + str(roundedShutter) + 's')
-                statusDictionary.update({'message': ' Shutter Speed: ' + str(roundedShutter) + 's'})
+                statusDictionary.update({'message': ' Shutter Speed: 1/' + str(roundedShortShutter) + 's'})
         time.sleep(wait)
         return
     except Exception as ex:
@@ -379,7 +384,7 @@ def hidePreview():
 # ------------------------------------------------------------------------------
 
 def captureImage(filepath, raw = True):
-    camera.capture(filepath, quality=100, bayer=raw)
+    camera.capture(filepath, quality=100, bayer=True)
     if raw == True:
         conversionThread = threading.Thread(target=convertBayerDataToDNG, args=(filepath,))
         conversionThread.start()
@@ -387,8 +392,9 @@ def captureImage(filepath, raw = True):
 # ------------------------------------------------------------------------------                
 
 def convertBayerDataToDNG(filepath):
-    dng.convert(filepath)
-
+    data = np.fromfile(filepath, dtype=np.uint8)
+    #dng lib broken
+    #dng.convert(data, filename=filepath)
 
 # ------------------------------------------------------------------------------
 
@@ -406,7 +412,7 @@ def createHWControls():
     global battery_level
     global buttonDictionary
 
-    hwControls.create(battery_level, buttonDictionary)
+    hwControls.create(buttonDictionary, battery_level)
 
 # === Image Capture ============================================================
 
@@ -478,9 +484,14 @@ try:
         while True:
             try:
                 if keyboard.is_pressed('ctrl+c') or keyboard.is_pressed('esc') or buttonDictionary['exit'] == True:
-                    # clear()
+                    buttonDictionary.update({'exit': False})
                     echoOn()
-                    sys.exit(1)
+                    #os._exit(1)
+                    running = False
+                    hidePreview()
+                    time.sleep(5)                           
+                    os.kill(os.getpid(), signal.SIGSTOP)
+                    sys.exit(0)
                     break
 
                 # Help
@@ -570,14 +581,14 @@ try:
                 # Shutter Speed 
                 elif keyboard.is_pressed('s+up') or buttonDictionary['shutterUp'] == True:
                     if shutter == 0:
-                        shutter = shutterShort
+                        shutter = shutterNominal
                     elif shutter > shutterShort and shutter <= shutterLong:                                 
                         shutter = int(shutter / 1.5)
                     setShutter(shutter, 0.25)
                     buttonDictionary.update({'shutterUp': False})
                 elif keyboard.is_pressed('s+down') or buttonDictionary['shutterDown'] == True:
                     if shutter == 0:                                                
-                        shutter = shutterLong
+                        shutter = shutterNominal
                     elif shutter < shutterLong and shutter >= shutterShort:                                 
                         shutter = int(shutter * 1.5)
                     elif shutter == shutterShort:
@@ -591,6 +602,8 @@ try:
                         iso = isoMin
                     elif iso >= isoMin and iso < isoMax:                                    
                         iso = int(iso * 2)
+                    elif iso >= isoMax:                                    
+                        iso = 0
                     setISO(iso, 0.25)
                     buttonDictionary.update({'isoUp': False})
                 elif keyboard.is_pressed('i+down') or buttonDictionary['isoDown'] == True:
@@ -651,6 +664,9 @@ try:
                         statusDictionary.update({'message': ' Charging for '+ str(pressed_time)+' seconds '})
 
                     buttonDictionary.update({'verify_shutdown': False})
+
+                #battery update
+                statusDictionary.update({'battery': str(int((battery_level/7)*100))+'%'})
 
 
             except SystemExit:
