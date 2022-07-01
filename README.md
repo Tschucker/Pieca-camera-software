@@ -6,7 +6,7 @@ I also added an auto start script that can be called at boot by placing the .des
 
 # User Interface
 
-![](ui_example.jpg)
+![](ui_example.png)
 
 # Compatibility Notice
 
