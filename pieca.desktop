@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name[en_US]=Pieca Camera
+Comment=camera app
+Icon=/usr/share/pixmaps/openbox.xpm
+Exec=lxterminal -e sudo /home/pi/Pieca-camera-software/pieca_autostart.sh
+Type=Application
+Encoding=UTF-8
+Terminal=true
+Categories=None;

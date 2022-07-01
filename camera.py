@@ -579,16 +579,16 @@ try:
                         statusDictionary.update({'action': 'recording'})
                         filepath = getFilePath(True, True)
                         camera.framerate = videoFramerate
-                        camera.resolution = (videoWidth, videoHeight)
+                        #camera.resolution = (videoWidth, videoHeight)
                         print(' Capturing video: ' + filepath + '\n')
                         statusDictionary.update({'message': ' Rec: Started '})
                         buttonDictionary.update({'captureVideo': False})
-                        camera.start_recording(filepath, quality=20)
+                        camera.start_recording(filepath, quality=20, resize=(videoWidth, videoHeight))
                     else:
                         isRecording = False
                         statusDictionary.update({'action': ''})
                         camera.stop_recording()
-                        camera.resolution = camera.MAX_RESOLUTION
+                        #camera.resolution = camera.MAX_RESOLUTION
                         print(' Capture complete \n')
                         statusDictionary.update({'message': ' Rec: Stopped '})
                         buttonDictionary.update({'captureVideo': False})
