@@ -2,6 +2,12 @@
 
 I forked the bulk of this code from eat-sleep-code's camera repo for the software interface to the Pieca camera system. I added Pi GPIO functionality to trigger the shutter, power off the camera, and a simple battery monitor to automatically turn off the camera when the battery is running out. 
 
+I also added an auto start script that can be called at boot by placing the .desktop file in the raspberry pi .config/autostart folder.
+
+# User Interface
+
+![](ui_example.jpg)
+
 # Compatibility Notice
 
 Due to breaking changes in the Raspberry Pi OS camera stack, this software will **not** work with the recent *Bullseye* version of Raspberry Pi OS.   A new integration library is currently under development by the Raspberry Pi Foundation with a planned release in early 2022.   Our camera software will be updated to take advantage of this integration library when it becomes publicly available.
