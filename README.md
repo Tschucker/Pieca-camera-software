@@ -1,5 +1,8 @@
 # Pieca Camera Software
 
+Learn more about the full design from my Blog Post
+[Tea and Tech Time: Pieca Camera System](https://teaandtechtime.com/pieca-a-raspberry-pi-camera-system-for-leica-m-mount-lenses/)
+
 I forked the bulk of this code from eat-sleep-code's camera repo for the software interface to the Pieca camera system. I added Pi GPIO functionality to trigger the shutter, power off the camera, and a simple battery monitor to automatically turn off the camera when the battery is running out. 
 
 I also added an auto start script that can be called at boot by placing the .desktop file in the raspberry pi .config/autostart folder.
